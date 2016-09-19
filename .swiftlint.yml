@@ -1,0 +1,22 @@
+disabled_rules:
+- cyclomatic_complexity
+- trailing_whitespace
+- valid_docs
+- type_name
+- type_body_length
+- file_length
+- missing_docs
+- conditional_binding_cascade
+opt_in_rules:
+- empty_count
+- missing_docs
+- force_unwrapping
+
+line_length:
+  error: 150
+variable_name:
+  min_length: 1 # only warning
+  max_length: # warning and error
+    warning: 30
+    error: 40
+  excluded: iPhone
