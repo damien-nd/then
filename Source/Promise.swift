@@ -21,8 +21,9 @@ public class Promise<T> {
     public typealias ResolveCallBack = (T) -> Void
     public typealias ProgressCallBack = (Float) -> Void
     public typealias RejectCallBack = (Error) -> Void
-    public typealias PromiseCallBack = (resolve:ResolveCallBack, reject:RejectCallBack) -> Void
-    public typealias PromiseProgressCallBack = (resolve:ResolveCallBack, reject:RejectCallBack, progress:ProgressCallBack) -> Void
+    public typealias PromiseCallBack = (@escaping ResolveCallBack, @escaping RejectCallBack) -> Void
+    public typealias PromiseProgressCallBack =
+        (@escaping ResolveCallBack, @escaping RejectCallBack, @escaping ProgressCallBack) -> Void
     private typealias SuccessBlock = (T) -> Void
     private var successBlocks = [SuccessBlock]()
     private typealias FailBlock = (Error) -> Void
@@ -30,49 +31,54 @@ public class Promise<T> {
     private typealias ProgressBlock = (Float) -> Void
     private var progressBlocks = [ProgressBlock]()
     private var finallyBlock:() -> Void = { t in }
-    private var promiseCallBack:PromiseCallBack!
-    private var promiseProgressCallBack:PromiseProgressCallBack?
+    private var promiseCallBack: PromiseCallBack!
+    private var promiseProgressCallBack: PromiseProgressCallBack?
     private var promiseStarted = false
-    private var state:PromiseState = .pending
-    private var value:T?
-    private var progress:Float?
-    private var error:Error?
+    private var state: PromiseState = .pending
+    private var value: T?
+    private var progress: Float?
+    private var error: Error?
     var initialPromiseStart:(() -> Void)?
     var initialPromiseStarted = false
     
-    public init(callback:(resolve:ResolveCallBack, reject:RejectCallBack) -> Void) {
+    public init(callback:@escaping (@escaping ResolveCallBack, @escaping RejectCallBack) -> Void) {
         promiseCallBack = callback
     }
     
-    public init(callback:(resolve:ResolveCallBack, reject:RejectCallBack, progress:ProgressCallBack) -> Void) {
+    public init(callback:@escaping (@escaping ResolveCallBack,
+                                    @escaping RejectCallBack,
+                                    @escaping ProgressCallBack) -> Void) {
         promiseProgressCallBack = callback
     }
     
     public func start() {
         promiseStarted = true
         if let p = promiseProgressCallBack {
-            p(resolve:resolvePromise, reject:rejectPromise, progress:progressPromise)
+            p(resolvePromise, rejectPromise, progressPromise)
         } else {
-            promiseCallBack(resolve:resolvePromise, reject:rejectPromise)
+            promiseCallBack(resolvePromise, rejectPromise)
         }
     }
     
     //MARK: - then((T)-> X)
     
-    @discardableResult public func then<X>(_ block:(T) -> X) -> Promise<X> {
+    @discardableResult public func then<X>(_ block:@escaping (T) -> X) -> Promise<X> {
         tryStartInitialPromise()
         startPromiseIfNeeded()
         return registerThen(block)
     }
-    
-    @discardableResult public func registerThen<X>(_ block:(T) -> X) -> Promise<X>{
-        let p = Promise<X>{ resolve, reject, progress in
+
+    @discardableResult public func registerThen<X>(_ block:@escaping (T) -> X) -> Promise<X> {
+        let p = Promise<X> { resolve, reject, progress in
             switch self.state {
             case .fulfilled:
-                let x:X = block(self.value!)
-                resolve(x)
+                if let v = self.value {
+                    resolve(block(v))
+                }
             case .rejected:
-                reject(self.error!)
+                if let e = self.error {
+                    reject(e)
+                }
             case .pending:
                 self.successBlocks.append({ t in
                     resolve(block(t))
@@ -90,22 +96,27 @@ public class Promise<T> {
     
     //MARK: - then((T)->Promise<X>)
     
-    @discardableResult public func then<X>(_ block:(T) -> Promise<X>) -> Promise<X>{
+    @discardableResult public func then<X>(_ block:@escaping (T) -> Promise<X>) -> Promise<X> {
         tryStartInitialPromise()
         startPromiseIfNeeded()
         return registerThen(block)
     }
     
-    @discardableResult public func registerThen<X>(_ block:(T) -> Promise<X>) -> Promise<X>{
-        let p = Promise<X>{ resolve, reject in
+    @discardableResult public
+    func registerThen<X>(_ block: @escaping (T) -> Promise<X>) -> Promise<X> {
+        let p = Promise<X> { resolve, reject in
             switch self.state {
             case .fulfilled:
-                self.registerNextPromise(block, result: self.value!,resolve:resolve,reject:reject)
+                if let v = self.value {
+                    self.registerNextPromise(block, result: v, resolve:resolve, reject:reject)
+                }
             case .rejected:
-                reject(self.error!)
+                if let e = self.error {
+                    reject(e)
+                }
             case .pending:
                 self.successBlocks.append({ t in
-                    self.registerNextPromise(block, result: t,resolve:resolve,reject:reject)
+                    self.registerNextPromise(block, result: t, resolve:resolve, reject:reject)
                 })
                 self.failBlocks.append(reject)
             }
@@ -117,31 +128,34 @@ public class Promise<T> {
     
     //MARK: - then(Promise<X>)
     
-    @discardableResult public func then<X>(_ p:Promise<X>) -> Promise<X>{
+    @discardableResult public func then<X>(_ p: Promise<X>) -> Promise<X> {
         return then { _ in p }
     }
     
-    @discardableResult public func registerThen<X>(_ p:Promise<X>) -> Promise<X>{
+    @discardableResult public func registerThen<X>(_ p: Promise<X>) -> Promise<X> {
         return registerThen { _ in p }
     }
     
     //MARK: - Error
     
-    @discardableResult public func onError(_ block:(Error) -> Void) -> Promise<Void>  {
+    @discardableResult public func onError(_ block: @escaping (Error) -> Void) -> Promise<Void> {
         tryStartInitialPromise()
         startPromiseIfNeeded()
         return registerOnError(block)
     }
     
-    @discardableResult public func registerOnError(_ block:(Error) -> Void) -> Promise<Void>{
+    @discardableResult public
+    func registerOnError(_ block: @escaping (Error) -> Void) -> Promise<Void> {
         let p = Promise<Void> { resolve, reject, progress in
             switch self.state {
             case .fulfilled:
                 reject(NSError(domain: "", code: 123, userInfo: nil))
             // No error so do nothing.
             case .rejected:
-                // Already failed so call error block
-                block(self.error!)
+                if let e = self.error {
+                    // Already failed so call error block
+                    block(e)
+                }
                 resolve()
             case .pending:
                 // if promise fails, resolve error promise
@@ -164,14 +178,14 @@ public class Promise<T> {
     
     //MARK: - Finally
     
-    @discardableResult public func finally<X>(_ block:() -> X) -> Promise<X>  {
+    @discardableResult public func finally<X>(_ block:@escaping () -> X) -> Promise<X> {
         tryStartInitialPromise()
         startPromiseIfNeeded()
         return registerFinally(block)
     }
     
-    @discardableResult public func registerFinally<X>(_ block:() -> X) -> Promise<X>{
-        let p = Promise<X>{ resolve, reject, progress in
+    @discardableResult public func registerFinally<X>(_ block:@escaping () -> X) -> Promise<X> {
+        let p = Promise<X> { resolve, reject, progress in
             switch self.state {
             case .fulfilled:
                 resolve(block())
@@ -196,19 +210,22 @@ public class Promise<T> {
     
     //MARK: - Progress
     
-    @discardableResult public func progress(_ block:(Float) -> Void) -> Promise<Void>  {
+    @discardableResult public func progress(_ block:@escaping (Float) -> Void) -> Promise<Void> {
         tryStartInitialPromise()
         startPromiseIfNeeded()
         return registerProgress(block)
     }
     
-    @discardableResult public func registerProgress(_ block:(Float) -> Void) -> Promise<Void>{
+    @discardableResult public
+    func registerProgress(_ block: @escaping (Float) -> Void) -> Promise<Void> {
         let p = Promise<Void> { resolve, reject, progress in
             switch self.state {
             case .fulfilled:
                 resolve()
             case .rejected:
-                reject(self.error!)
+                if let e = self.error {
+                    reject(e)
+                }
             case .pending:()
                 self.failBlocks.append(reject)
                 self.successBlocks.append({ _ in
@@ -228,7 +245,7 @@ public class Promise<T> {
     
     //MARK: - Helpers
     
-    private func passAlongFirstPromiseStartFunctionAndStateTo<X>(_ p:Promise<X>) {
+    private func passAlongFirstPromiseStartFunctionAndStateTo<X>(_ p: Promise<X>) {
         // Pass along First promise start block
         if let startBlock = self.initialPromiseStart {
             p.initialPromiseStart = startBlock
@@ -250,14 +267,17 @@ public class Promise<T> {
         if !promiseStarted { start() }
     }
     
-    private func registerNextPromise<X>(_ block:(T) -> Promise<X>, result:T, resolve:(X) -> Void,reject:RejectCallBack) {
-        let nextPromise:Promise<X> = block(result)
+    private func registerNextPromise<X>(_ block: (T) -> Promise<X>,
+                                        result: T,
+                                        resolve: @escaping (X) -> Void,
+                                        reject: @escaping RejectCallBack) {
+        let nextPromise: Promise<X> = block(result)
         nextPromise.then { x in
             resolve(x)
         }.onError(reject)
     }
     
-    private func resolvePromise(_ result:T) {
+    private func resolvePromise(_ result: T) {
         state = .fulfilled
         value = result
         for sb in successBlocks {
@@ -266,16 +286,18 @@ public class Promise<T> {
         finallyBlock()
     }
     
-    private func rejectPromise(_ e:Error) {
+    private func rejectPromise(_ e: Error) {
         state = .rejected
         error = e
         for fb in failBlocks {
-            fb(error!)
+            if let e = error {
+                fb(e)
+            }
         }
         finallyBlock()
     }
     
-    private func progressPromise(_ p:Float) {
+    private func progressPromise(_ p: Float) {
         progress = p
         for pb in progressBlocks {
             if let progress = progress {

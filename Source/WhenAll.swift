@@ -9,7 +9,7 @@
 import Foundation
 
 
-public func whenAll<T>(_ promises:[Promise<T>]) -> Promise<[T]> {
+public func whenAll<T>(_ promises: [Promise<T>]) -> Promise<[T]> {
     return Promise { resolve, _ in
         var ts = [T]()
         let group = DispatchGroup()
@@ -22,14 +22,14 @@ public func whenAll<T>(_ promises:[Promise<T>]) -> Promise<[T]> {
     }
 }
 
-public func whenAll<T>(_ promises:Promise<T>...) -> Promise<[T]> {
+public func whenAll<T>(_ promises: Promise<T>...) -> Promise<[T]> {
     return whenAll(promises)
 }
 
 
 /// Array version
 
-public func whenAll<T>(_ promises:[Promise<[T]>]) -> Promise<[T]> {
+public func whenAll<T>(_ promises: [Promise<[T]>]) -> Promise<[T]> {
     return Promise { resolve, _ in
         var ts = [T]()
         let group = DispatchGroup()
@@ -42,8 +42,6 @@ public func whenAll<T>(_ promises:[Promise<[T]>]) -> Promise<[T]> {
     }
 }
 
-public func whenAll<T>(_ promises:Promise<[T]>...) -> Promise<[T]> {
+public func whenAll<T>(_ promises: Promise<[T]>...) -> Promise<[T]> {
     return whenAll(promises)
 }
-
-

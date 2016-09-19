@@ -40,7 +40,9 @@ class thenTests: XCTestCase {
             .then { isFollowed in
                 XCTFail("then block shouldn't be called")
             }.onError { e in
-                XCTAssertTrue((e as! MyError) == MyError.defaultError)
+                if let err = e as? MyError {
+                    XCTAssertTrue(err == .defaultError)
+                }
                 errorExpectation.fulfill()
             }.finally {
                 finallyExpectation.fulfill()
@@ -63,7 +65,7 @@ class thenTests: XCTestCase {
     }
     
     func testChainedPromisesAreExecutedInOrder() {
-        var count = 0
+        var counter = 0
         
         let block1 = expectation(description: "block 1 called")
         let block2 = expectation(description: "block 2 called")
@@ -72,23 +74,23 @@ class thenTests: XCTestCase {
         let thenExpectation = expectation(description: "then called")
         fetchUserId()
         .then(fetchUserNameFromId(1)).then({ _ in
-            XCTAssertTrue(count == 0)
-            count+=1
+            XCTAssertTrue(counter == 0)
+            counter+=1
             block1.fulfill()
         })
         .then(fetchUserNameFromId(2)).then {_ in
-            XCTAssertTrue(count == 1)
-            count+=1
+            XCTAssertTrue(counter == 1)
+            counter+=1
             block2.fulfill()
         }
         .then(fetchUserNameFromId(3)).then {_ in
-            XCTAssertTrue(count == 2)
-            count+=1
+            XCTAssertTrue(counter == 2)
+            counter+=1
             block3.fulfill()
         }
         .then(fetchUserNameFromId(4)).then { name in
-            XCTAssertTrue(count == 3)
-            count+=1
+            XCTAssertTrue(counter == 3)
+            counter+=1
             print("name :\(name)")
             thenExpectation.fulfill()
         }
@@ -127,8 +129,8 @@ class thenTests: XCTestCase {
     
     func testWhenAll() {
         let block = expectation(description: "Block called")
-        whenAll(promise1(),promise2(),promise3()).then { array in
-            XCTAssertEqual(array, [1,2,3])
+        whenAll(promise1(), promise2(), promise3()).then { array in
+            XCTAssertEqual(array, [1, 2, 3])
             block.fulfill()
         }
         waitForExpectations(timeout: 1, handler: nil)
@@ -136,8 +138,8 @@ class thenTests: XCTestCase {
     
     func testWhenAllArray() {
         let block = expectation(description: "Block called")
-        whenAll(promiseArray1(),promiseArray2(),promiseArray3()).then { array in
-            XCTAssertEqual(array, [1,2,3,4,5,6,7,8,9])
+        whenAll(promiseArray1(), promiseArray2(), promiseArray3()).then { array in
+            XCTAssertEqual(array, [1, 2, 3, 4, 5, 6, 7, 8, 9])
             block.fulfill()
         }
         waitForExpectations(timeout: 1, handler: nil)
@@ -202,7 +204,7 @@ class thenTests: XCTestCase {
     }
     
     func testRegisterThenChainedPromisesAreExecutedInOrder() {
-        var count = 0
+        var counter = 0
         
         let block1 = expectation(description: "block 1 called")
         let block2 = expectation(description: "block 2 called")
@@ -211,20 +213,20 @@ class thenTests: XCTestCase {
         let thenExpectation = expectation(description: "thenExpectation")
         fetchUserId()
             .registerThen { _ in
-                XCTAssertTrue(count == 0)
-                count+=1
+                XCTAssertTrue(counter == 0)
+                counter+=1
                 block1.fulfill()
             }.registerThen {_ in
-                XCTAssertTrue(count == 1)
-                count+=1
+                XCTAssertTrue(counter == 1)
+                counter+=1
                 block2.fulfill()
             }.registerThen {_ in
-                XCTAssertTrue(count == 2)
-                count+=1
+                XCTAssertTrue(counter == 2)
+                counter+=1
                 block3.fulfill()
             }.then { name in
-                XCTAssertTrue(count == 3)
-                count+=1
+                XCTAssertTrue(counter == 3)
+                counter+=1
                 print("name :\(name)")
                 thenExpectation.fulfill()
             }
@@ -289,7 +291,7 @@ class thenTests: XCTestCase {
     }
     
     func testRegisterThenMultipleThenOnlyCallOriginalPromiseOnce() {
-        var count = 0
+        var counter = 0
         
         let block1 = expectation(description: "block 1 called")
         let block2 = expectation(description: "block 2 called")
@@ -298,20 +300,20 @@ class thenTests: XCTestCase {
         let thenExpectation = expectation(description: "thenExpectation")
         fetchUserId()
             .registerThen { _ in
-                XCTAssertTrue(count == 0)
-                count+=1
+                XCTAssertTrue(counter == 0)
+                counter+=1
                 block1.fulfill()
             }.registerThen {_ in
-                XCTAssertTrue(count == 1)
-                count+=1
+                XCTAssertTrue(counter == 1)
+                counter+=1
                 block2.fulfill()
             }.registerThen {_ in
-                XCTAssertTrue(count == 2)
-                count+=1
+                XCTAssertTrue(counter == 2)
+                counter+=1
                 block3.fulfill()
             }.then { name in
-                XCTAssertTrue(count == 3)
-                count+=1
+                XCTAssertTrue(counter == 3)
+                counter+=1
                 print("name :\(name)")
                 thenExpectation.fulfill()
             }.then { _ -> Void in
@@ -485,7 +487,7 @@ class thenTests: XCTestCase {
 }
 
 var globalCount = 0
-var blockPromiseCExpectation:XCTestExpectation!
+var blockPromiseCExpectation: XCTestExpectation!
 
 
 func upload() -> Promise<Void> {
@@ -556,19 +558,19 @@ func promise3() -> Promise<Int> {
 
 func promiseArray1() -> Promise<[Int]> {
     return Promise { resolve, _ in
-        resolve([1,2,3])
+        resolve([1, 2, 3])
     }
 }
 
 func promiseArray2() -> Promise<[Int]> {
     return Promise { resolve, _ in
-        resolve([4,5,6])
+        resolve([4, 5, 6])
     }
 }
 
 func promiseArray3() -> Promise<[Int]> {
     return Promise { resolve, _ in
-        resolve([7,8,9])
+        resolve([7, 8, 9])
     }
 }
 
@@ -586,28 +588,28 @@ func fetchUserId() -> Promise<Int> {
     }
 }
 
-func fetchUserNameFromId(_ id:Int) -> Promise<String> {
+func fetchUserNameFromId(_ id: Int) -> Promise<String> {
     return Promise { resolve, reject in
         print("fetching UserName FromId : \(id) ...")
         wait { resolve("John Smith") }
     }
 }
 
-func fetchUserFollowStatusFromName(_ name:String) -> Promise<Bool> {
+func fetchUserFollowStatusFromName(_ name: String) -> Promise<Bool> {
     return Promise { resolve, reject in
         print("fetchUserFollowStatusFromName: \(name) ...")
         wait { resolve(false) }
     }
 }
 
-func failingFetchUserFollowStatusFromName(_ name:String) -> Promise<Bool> {
+func failingFetchUserFollowStatusFromName(_ name: String) -> Promise<Bool> {
     return Promise { resolve, reject in
         print("fetchUserFollowStatusFromName: \(name) ...")
         wait { reject(MyError.defaultError) }
     }
 }
 
-func wait(_ callback:()->()) {
+func wait(_ callback:@escaping ()->()) {
     let delay = 0.1 * Double(NSEC_PER_SEC)
     let time = DispatchTime.now() + Double(Int64(delay)) / Double(NSEC_PER_SEC)
     DispatchQueue.main.asyncAfter(deadline: time) {
@@ -615,7 +617,7 @@ func wait(_ callback:()->()) {
     }
 }
 
-func wait(_ time:Double, callback:()->()) {
+func wait(_ time: Double, callback: @escaping ()->()) {
     let delay = time * Double(NSEC_PER_SEC)
     let time = DispatchTime.now() + Double(Int64(delay)) / Double(NSEC_PER_SEC)
     DispatchQueue.main.asyncAfter(deadline: time) {
@@ -623,6 +625,6 @@ func wait(_ time:Double, callback:()->()) {
     }
 }
 
-enum MyError:Error {
+enum MyError: Error {
     case defaultError
 }
